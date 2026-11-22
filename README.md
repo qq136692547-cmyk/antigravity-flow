@@ -113,13 +113,13 @@ Run the comprehensive 6-tier test suite:
 python tests/run_tests.py
 ```
 
-Test coverage (29/29 passing):
+Test coverage (33/33 passing):
 - **Tier 1**: Manifest Schema & Skill Integrity (frontmatter, author metadata, references).
 - **Tier 2**: Live Credit Sniffer & Plan Badge Parsing (Pro 0-credit vs Free charge regex).
 - **Tier 3**: Autonomy Modes & Security Bounds (auto vs checkpoint, 4K upscale gate).
 - **Tier 4**: Veo 3.1 5-Slot Grammar & Storyboard Parser (AST validation, velocity adverbs).
 - **Tier 5**: Adversarial Hardening (Zero-CJK codebase check, ReDoS safety, deprecation check).
-- **Tier 6**: Live Grounding & Credit Hardening (Fail-Closed NaN sniffer, ceiling gate, dynamic upscale duration, 2.5s pacing, edit-before-extend invariant).
+- **Tier 6**: Live Grounding & Credit Hardening (Fail-Closed NaN sniffer, Nano Banana safety, comma-balance rejection, single & session ceilings, dynamic upscale duration, 2.5s pacing, edit-before-extend invariant, rule consistency).
 
 ---
 

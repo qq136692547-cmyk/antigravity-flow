@@ -15,41 +15,53 @@ PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
 MAX_CREDIT_CEILING = 60
 PACING_DELAY_SECONDS = 2.5
+MAX_SESSION_CREDITS = 120
 
 # ---------------------------------------------------------
 # Regex Definitions for Live Credit Sniffer & Autonomy Modes
 # ---------------------------------------------------------
 
-CREDIT_SNIFFER_PATTERNS = [
-    re.compile(r"(?:generating\s+will\s+use|costs?)\s+(\d+)\s+credits?", re.IGNORECASE),
-    re.compile(r"\b(\d+)\s+credits?\b", re.IGNORECASE),
+INVALID_COST_TOKEN_RE = re.compile(r"\b(?:nan|undefined|null|infinity)\b", re.IGNORECASE)
+
+ANCHORED_CREDIT_PATTERNS = [
+    re.compile(r"(?:generating\s+will\s+use|costs?)\s+(?<![\d.,-])(\d+)(?![\d.,])\s+credits?\b", re.IGNORECASE),
+    re.compile(r"^\s*(?<![\d.,-])(\d+)(?![\d.,])\s+credits?\s*$", re.IGNORECASE),
+    re.compile(r">\s*(?<![\d.,-])(\d+)(?![\d.,])\s+credits?\s*<", re.IGNORECASE),
 ]
+
+# Backward-compatible alias
+CREDIT_SNIFFER_PATTERNS = ANCHORED_CREDIT_PATTERNS
 
 AUTO_MODE_CUES = [
     re.compile(r"\b(?:auto\s+mode|full[- ]auto|unattended|run\s+unattended|without\s+asking|batch\s+generate\s+all)\b", re.IGNORECASE),
     re.compile(r"全自动|免打扰|自动模式|别问我|无需确认", re.IGNORECASE),
 ]
 
+INLINE_EDIT_TOKENS = ("edit", "in-place", "inline", "insert", "remove", "camera")
+
 # ---------------------------------------------------------
 # Helper Functions: Credit Sniffer & Autonomy Decisions
 # ---------------------------------------------------------
 
 def is_valid_credit_cost(val: Any) -> bool:
-    """Validate that credit cost is a non-negative integer."""
+    """Validate that credit cost is a non-negative integer and not a boolean."""
     return isinstance(val, int) and val >= 0 and not isinstance(val, bool)
 
 
 def parse_credit_cost(ui_text: str) -> Optional[int]:
     """
     Parse integer credit cost from live UI text string.
-    Fail-Closed: If UI contains 'NaN' or cannot be parsed, returns None.
+    Hardened Fail-Closed Logic:
+    - Rejects invalid tokens with word boundaries (NaN, undefined, null, infinity).
+    - Prevents false-positives on 'Nano Banana'.
+    - Refuses comma-separated balances ('1,000 credits' -> None).
+    - Refuses negative numbers ('-10 credits' -> None) and decimals ('12.5 credits' -> None).
     """
-    if not ui_text:
+    if not isinstance(ui_text, str) or not ui_text.strip():
         return None
-    # Fail closed on NaN or unparsed SPA lag
-    if "nan" in ui_text.lower():
+    if INVALID_COST_TOKEN_RE.search(ui_text):
         return None
-    for pattern in CREDIT_SNIFFER_PATTERNS:
+    for pattern in ANCHORED_CREDIT_PATTERNS:
         match = pattern.search(ui_text)
         if match:
             try:
@@ -68,6 +80,8 @@ def parse_plan_badge(dom_badge_text: str) -> str:
         return "ULTRA"
     if "PRO" in clean:
         return "PRO"
+    if "PLUS" in clean:
+        return "PLUS"
     return "FREE"
 
 
@@ -81,67 +95,86 @@ def detect_autonomy_mode(prompt: str, default_mode: str = "checkpoint") -> str:
     return default_mode
 
 
-def calculate_upscale_cost(duration_seconds: int, resolution: str) -> int:
+def calculate_upscale_cost(duration_seconds: int, resolution: str) -> Optional[int]:
     """
     Calculate upscale credit cost according to live duration rules:
-    - 1080p: 0 credits for 1-10s; 1 credit per second past 10s.
-    - 4K: 50 credits for 1-10s; 50 + 5 credits per second past 10s.
+    - 720p / 1080p: 0 credits for 1-10s; 1 credit per second past 10s.
+    - 4K / UHD / 2160p: 50 credits for 1-10s; 50 + 5 credits per second past 10s.
+    Returns None (fail-closed) on invalid duration (<=0) or unrecognized resolution.
     """
-    res = (resolution or "").lower()
-    if "1080" in res:
+    if not is_valid_credit_cost(duration_seconds) or duration_seconds <= 0:
+        return None
+    res = (resolution or "").strip().lower()
+    if "720" in res or "1080" in res:
         return 0 if duration_seconds <= 10 else (duration_seconds - 10) * 1
-    elif "4k" in res or "2160" in res:
+    if "4k" in res or "2160" in res or "uhd" in res:
         return 50 if duration_seconds <= 10 else 50 + (duration_seconds - 10) * 5
-    return 0
+    return None
 
 
 def should_auto_proceed(
     credit_cost: Optional[int],
     autonomy_mode: str,
+    account_tier: str = "ultra",
     is_upscale_4k: bool = False,
     upscale_duration: Optional[int] = None,
-    upscale_resolution: Optional[str] = None
+    upscale_resolution: Optional[str] = None,
+    session_spent_credits: int = 0,
+    max_session_credits: int = MAX_SESSION_CREDITS,
 ) -> Tuple[bool, str]:
     """
     Evaluate whether browser automation can proceed without pausing:
-    Fail-Closed: If credit_cost is None, immediately requires checkpoint confirmation.
-    Ceiling: If credit_cost > MAX_CREDIT_CEILING, immediately requires checkpoint confirmation.
-    Upscale: If 4K or duration > 10s, requires checkpoint confirmation.
-    Returns (can_proceed, reason).
+    - Fail-Closed: Invalid/unparsed cost halts immediately.
+    - Tier Gating: 4K requires Ultra; 720p/1080p video upscaling requires Plus/Pro/Ultra.
+    - Upscale Gating: 4K or duration > 10s halts for checkpoint confirmation.
+    - Single Ceiling: Cost > MAX_CREDIT_CEILING (60) halts.
+    - Session Ceiling: Cumulative session spend > max_session_credits halts.
     """
-    if credit_cost is None:
+    if not is_valid_credit_cost(credit_cost):
         return False, "Fail-closed: Unable to determine credit cost (possible NaN or unparsed UI). Checkpoint pause required."
-    
-    if credit_cost > MAX_CREDIT_CEILING:
-        return False, f"Spend exceeds max credit ceiling ({credit_cost} > {MAX_CREDIT_CEILING}). Checkpoint confirmation required to protect shared Google One AI credit pool."
-        
+
+    res_norm = (upscale_resolution or "").strip().lower()
+    tier_norm = (account_tier or "ultra").strip().lower()
+    effective_4k = is_upscale_4k or any(tok in res_norm for tok in ("4k", "2160", "uhd"))
+
+    if effective_4k:
+        if "ultra" not in tier_norm:
+            return False, "Blocked: 4K Upscale requires Google AI Ultra subscription."
+        return False, f"4K Upscale ({credit_cost} credits) requires explicit single-turn confirmation."
+
+    if ("720" in res_norm or "1080" in res_norm) and tier_norm == "free":
+        return False, "Blocked: 720p/1080p video upscaling requires Google AI Plus, Pro, or Ultra."
+
     if upscale_duration is not None and upscale_duration > 10:
         return False, f"Extended upscale ({upscale_duration}s > 10s) incurs per-second billing and requires explicit checkpoint confirmation."
-        
-    if is_upscale_4k:
-        return False, "4K Upscale (50 credits) requires explicit single-turn confirmation."
-        
+
+    if credit_cost > MAX_CREDIT_CEILING:
+        return False, f"Spend exceeds max credit ceiling ({credit_cost} > {MAX_CREDIT_CEILING}). Checkpoint confirmation required to protect shared Google One AI credit pool."
+
+    if (session_spent_credits + credit_cost) > max_session_credits and credit_cost > 0:
+        return False, f"Spend exceeds cumulative session ceiling ({session_spent_credits + credit_cost} > {max_session_credits})."
+
     if credit_cost == 0:
         return True, "0-credit action allowed in auto mode."
-        
-    if autonomy_mode == "auto":
+
+    if (autonomy_mode or "").strip().lower() == "auto":
         return True, f"Auto mode override active: consuming {credit_cost} credits."
-        
+
     return False, f"Generation costs {credit_cost} credits. Checkpoint confirmation required."
 
 
 def validate_scene_operation_order(operations: List[str]) -> Tuple[bool, str]:
     """
     Validate that inline edits occur prior to Extend operations.
-    Live Flow Web UI blocks inline video editing on clips that have been extended.
+    Live Flow Web UI blocks inline video editing (insert, remove, camera, edit) on clips that have been extended.
     """
     has_extended = False
     for op in operations:
         clean = (op or "").strip().lower()
         if "extend" in clean:
             has_extended = True
-        elif ("edit" in clean or "in-place" in clean) and has_extended:
-            return False, "Flow invariant violated: Inline video edits must occur before extending clip. Flow Web blocks editing on extended clips."
+        elif has_extended and any(tok in clean for tok in INLINE_EDIT_TOKENS):
+            return False, "Flow invariant violated: Inline video edits (insert/remove/camera/edit) must occur before Extend. Flow Web blocks editing on extended clips."
     return True, "Operation sequence is valid."
 
 

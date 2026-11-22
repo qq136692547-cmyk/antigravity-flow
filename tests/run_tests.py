@@ -46,11 +46,15 @@ from tests.test_tier5_adversarial_cjk import (
 )
 from tests.test_tier6_credit_adversarial import (
     test_nan_credits_fail_closed,
-    test_singular_credit_parsing,
-    test_credit_ceiling_protection,
+    test_nano_banana_no_false_positive,
+    test_unanchored_and_comma_balance_rejection,
+    test_negative_and_decimal_rejection,
+    test_singular_and_standard_credit_parsing,
+    test_credit_ceiling_and_session_cap,
     test_duration_upscale_math_and_gating,
     test_rate_limit_pacing_delay,
     test_scene_editor_extend_before_edit_invariant,
+    test_live_rules_markdown_consistency,
 )
 
 
@@ -91,11 +95,15 @@ def run_all_tiers():
         ]),
         ("Tier 6: Live Grounding & Credit Adversarial Hardening", [
             ("nan_credits_fail_closed", test_nan_credits_fail_closed),
-            ("singular_credit_parsing", test_singular_credit_parsing),
-            ("credit_ceiling_protection", test_credit_ceiling_protection),
+            ("nano_banana_no_false_positive", test_nano_banana_no_false_positive),
+            ("unanchored_and_comma_balance_rejection", test_unanchored_and_comma_balance_rejection),
+            ("negative_and_decimal_rejection", test_negative_and_decimal_rejection),
+            ("singular_and_standard_credit_parsing", test_singular_and_standard_credit_parsing),
+            ("credit_ceiling_and_session_cap", test_credit_ceiling_and_session_cap),
             ("duration_upscale_math_and_gating", test_duration_upscale_math_and_gating),
             ("rate_limit_pacing_delay", test_rate_limit_pacing_delay),
             ("scene_editor_extend_before_edit_invariant", test_scene_editor_extend_before_edit_invariant),
+            ("live_rules_markdown_consistency", test_live_rules_markdown_consistency),
         ]),
     ]
 
