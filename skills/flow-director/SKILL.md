@@ -24,7 +24,7 @@ Extract from the user's request (ask briefly only if critical parameters are mis
 - **Aspect Ratio**: `16:9` (landscape, default) or `9:16` (vertical) for video; `16:9`, `4:3`, `1:1`, `3:4`, or `9:16` for image Ingredients.
 - **Budget / Model Tier Strategy**:
   - **Zero-cost / low-cost drafting**: `Veo 3.1 - Lite [Lower Priority]` (0 credits on ULTRA) or `Omni 1.2 Flash` at `360p` for fast blocking.
-  - **Hero / final video**: `Omni 1.2 Flash` at `720p` (best character and scene consistency) or `Veo 3.1 - Quality`.
+  - **Hero / final video**: `Omni 1.2 Flash` at `720p` (best character and scene consistency; recommended default) or `Veo 3.1 - Quality` (note: check deprecation tag in Flow UI, e.g., marked `Leaving Dec 5`).
   - **Image Ingredients**: `Nano Banana 2.1` (0 credits on Pro/Ultra) with `Thinking level` (`Low` / `Medium` / `High`).
 - **Autonomy Preference**: Check whether the user requested `auto` mode (e.g., `"auto mode"`, `"full-auto"`, `"run unattended"`) or default `checkpoint` mode.
 

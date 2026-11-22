@@ -84,6 +84,6 @@ Ambient noise: distant thunder echoing across the bay, gentle harbor waves lappi
 | Model Tier | Native Duration | Recommended Resolution | Credit Cost (Pro/Ultra) | Best Use Case |
 | :--- | :--- | :--- | :--- | :--- |
 | **Omni 1.2 Flash** | 4s / 6s / 8s | `360p` (draft) / `720p` (final) | 10 - 20 credits | Best character consistency, complex action, seamless multi-shot continuity |
-| **Veo 3.1 - Quality** | 4s / 6s / 8s | `720p` / `1080p` | 20 credits | High-fidelity cinematic realism, photorealistic textures |
+| **Veo 3.1 - Quality** (Leaving Dec 5) | 4s / 6s / 8s | `720p` / `1080p` | 20 credits | High-fidelity cinematic realism (check UI for retirement date) |
 | **Veo 3.1 - Lite [Lower Priority]** | 4s / 6s / 8s | `720p` | **0 credits (ULTRA)** / 10 credits | Zero-credit rapid blocking, composition testing |
 | **Nano Banana 2.1** | Static Image | `16:9`, `1:1`, `9:16` | **0 credits (Pro/Ultra)** | Character sheets, style boards, storyboard keyframes, commercial posters |
