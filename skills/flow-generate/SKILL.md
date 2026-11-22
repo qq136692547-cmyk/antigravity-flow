@@ -17,6 +17,9 @@ Drive Google Flow (`https://flow.google.com`) via Antigravity's built-in `browse
 Follow `rules/AGENTS.md`:
 - Reuse the active Flow `browser` subagent (`send_message`) whenever one is already open; otherwise invoke a new `browser` subagent (`Model: "flash"`) directly at `https://flow.google.com/` and apply the Fast-Path Authentication Check before pausing for login.
 - Respect the detected autonomy mode (`checkpoint` by default; `auto` when the user prompt requests full-auto execution).
+- Enforce the **Fail-Closed Live Credit Sniffer**: If the UI readout contains `NaN` (e.g., `"Generating will use NaN credits"`), unparsed text, or non-integers, pause immediately in checkpoint mode. Never assume 0 credits on parse failure.
+- Enforce the **Credit Ceiling Gate**: To protect the shared Google One AI credit pool with Antigravity, any single generation or batch action exceeding `MAX_CREDIT_CEILING = 60` credits must pause for explicit user confirmation, even in `auto` mode.
+- Enforce **Dynamic Upscale Gating**: 1080p upscales past 10s (1 credit/s) and all 4K upscales (50 credits + 5 credits/s past 10s) must pause for confirmation.
 - Always pause for Google sign-in, CAPTCHA, or credit/payment blocks (`PAYMENT_REQUIRED`).
 
 ## Workflow
@@ -24,7 +27,7 @@ Follow `rules/AGENTS.md`:
 ### Step 1: Resolve Shot Specification(s) & Autonomy Mode
 
 Determine what is being generated:
-- **Single shot**: Prompt (including explicit camera direction and audio cues, since Flow has no separate Camera Control menu), Video type (`Ingredients` for Text-to-Video / Ingredients-to-Video, or `Frames` for Start/End keyframe animation), Ingredients (`@handles`), keyframes (if any), aspect ratio (`16:9` or `9:16`), model (`Omni 1.2 Flash`, `Veo 3.1 - Lite [Lower Priority]`, `Veo 3.1 - Lite`, etc.), resolution (`360p` / `720p` for Omni), duration (`4s` / `6s` / `8s` / `10s`), and output count (`x1`–`x4`).
+- **Single shot**: Prompt (including explicit camera direction and audio cues, since Flow has no separate Camera Control menu), Video type (`Ingredients` for Text-to-Video / Ingredients-to-Video, or `Frames` for Start/End keyframe animation), Ingredients (`@handles`), keyframes (if any), aspect ratio (`16:9` or `9:16`), model (`Omni 1.2 Flash` primary flagship, `Veo 3.1 - Lite [Lower Priority]` or `Veo 3.1 - Lite` secondary baseline; note Veo Fast/Quality retire Dec 5, 2026), resolution (`360p` draft mode at 1 credit/s or `720p` standard at 3 credits/s for Omni; seconds 11-15 billed at double rate), duration (`4s` / `6s` / `8s` / `10s`), and output count (`x1`–`x4`).
 - **Batch from `storyboard.md`**: Read the shot list (`S01..Sn`) and note which shots are still pending.
 - **Autonomy mode**:
   - Check the user's current prompt (and `storyboard.md` header) for full-auto cues in any language (e.g., `"auto mode"`, `"full-auto"`, `"run unattended"`, `"batch without asking"`).
@@ -73,8 +76,8 @@ Send semantic instructions to the `browser` subagent for each shot (or sequentia
 - **Download submenu (`More options` -> `Download`)**: Clicking/hovering `Download` opens a 4-option format/resolution submenu:
   - `270p Animated GIF` (0 credits)
   - `720p Original size` (0 credits)
-  - `1080p Upscaled` (0 credits — recommended default for clean local exports)
-  - `4K Upscaled · 50 credits` (consumes 50 credits — confirm first in `checkpoint` mode before selecting)
+  - `1080p Upscaled` (0 credits for 1-10s; 1 credit/s past 10s on Plus+; confirm if duration > 10s)
+  - `4K Upscaled · 50 credits` (consumes 50 credits for 1-10s + 5 credits/s past 10s on Ultra — confirm first in `checkpoint` mode before selecting)
 - **In `checkpoint` mode**: Report the generated takes and ask whether to `Favorite` / keep, `Reuse prompt` to re-roll, switch model/resolution (e.g., `360p` -> `720p` on `Omni 1.2 Flash`), `Add to scene`, or `Download` (specifying resolution tier).
 - **In `auto` mode**:
   - If a shot fails with a transient error, retry once automatically; if blocked by a safety/policy filter, lightly soften the phrasing once or log the block and continue with remaining shots.

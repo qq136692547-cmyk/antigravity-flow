@@ -18,7 +18,7 @@ def test_plugin_json_schema():
         
     assert data.get("name") == "antigravity-flow"
     assert data.get("displayName") == "Google Flow"
-    assert data.get("version") == "0.3.0"
+    assert data.get("version") == "0.3.1"
     assert len(data.get("description", "")) > 20
     
     # Check author & repository links
@@ -46,6 +46,8 @@ def test_rules_agents_md():
     content = agents_path.read_text(encoding="utf-8")
     assert "Fast-Path Authentication Check" in content
     assert "Live Credit Sniffer" in content
+    assert "Fail-Closed" in content
+    assert "MAX_CREDIT_CEILING" in content
     assert re.search(r"auto\s+mode", content, re.I) is not None
     assert re.search(r"checkpoint\s+mode", content, re.I) is not None
     assert "4K Upscaled" in content or "4K Upscale" in content

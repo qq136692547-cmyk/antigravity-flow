@@ -1,5 +1,5 @@
 """
-Shared fixtures, regex parsers, and utilities for the antigravity-flow 5-tier test suite.
+Shared fixtures, regex parsers, and utilities for the antigravity-flow 6-tier test suite.
 """
 
 import os
@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+
+# ---------------------------------------------------------
+# Constants: Safety Ceilings, Pacing & Boundaries
+# ---------------------------------------------------------
+
+MAX_CREDIT_CEILING = 60
+PACING_DELAY_SECONDS = 2.5
 
 # ---------------------------------------------------------
 # Regex Definitions for Live Credit Sniffer & Autonomy Modes
@@ -27,14 +34,30 @@ AUTO_MODE_CUES = [
 # Helper Functions: Credit Sniffer & Autonomy Decisions
 # ---------------------------------------------------------
 
+def is_valid_credit_cost(val: Any) -> bool:
+    """Validate that credit cost is a non-negative integer."""
+    return isinstance(val, int) and val >= 0 and not isinstance(val, bool)
+
+
 def parse_credit_cost(ui_text: str) -> Optional[int]:
-    """Parse integer credit cost from live UI text string."""
+    """
+    Parse integer credit cost from live UI text string.
+    Fail-Closed: If UI contains 'NaN' or cannot be parsed, returns None.
+    """
     if not ui_text:
+        return None
+    # Fail closed on NaN or unparsed SPA lag
+    if "nan" in ui_text.lower():
         return None
     for pattern in CREDIT_SNIFFER_PATTERNS:
         match = pattern.search(ui_text)
         if match:
-            return int(match.group(1))
+            try:
+                val = int(match.group(1))
+                if val >= 0:
+                    return val
+            except ValueError:
+                return None
     return None
 
 
@@ -58,22 +81,72 @@ def detect_autonomy_mode(prompt: str, default_mode: str = "checkpoint") -> str:
     return default_mode
 
 
-def should_auto_proceed(credit_cost: int, autonomy_mode: str, is_upscale_4k: bool = False) -> Tuple[bool, str]:
+def calculate_upscale_cost(duration_seconds: int, resolution: str) -> int:
+    """
+    Calculate upscale credit cost according to live duration rules:
+    - 1080p: 0 credits for 1-10s; 1 credit per second past 10s.
+    - 4K: 50 credits for 1-10s; 50 + 5 credits per second past 10s.
+    """
+    res = (resolution or "").lower()
+    if "1080" in res:
+        return 0 if duration_seconds <= 10 else (duration_seconds - 10) * 1
+    elif "4k" in res or "2160" in res:
+        return 50 if duration_seconds <= 10 else 50 + (duration_seconds - 10) * 5
+    return 0
+
+
+def should_auto_proceed(
+    credit_cost: Optional[int],
+    autonomy_mode: str,
+    is_upscale_4k: bool = False,
+    upscale_duration: Optional[int] = None,
+    upscale_resolution: Optional[str] = None
+) -> Tuple[bool, str]:
     """
     Evaluate whether browser automation can proceed without pausing:
+    Fail-Closed: If credit_cost is None, immediately requires checkpoint confirmation.
+    Ceiling: If credit_cost > MAX_CREDIT_CEILING, immediately requires checkpoint confirmation.
+    Upscale: If 4K or duration > 10s, requires checkpoint confirmation.
     Returns (can_proceed, reason).
     """
+    if credit_cost is None:
+        return False, "Fail-closed: Unable to determine credit cost (possible NaN or unparsed UI). Checkpoint pause required."
+    
+    if credit_cost > MAX_CREDIT_CEILING:
+        return False, f"Spend exceeds max credit ceiling ({credit_cost} > {MAX_CREDIT_CEILING}). Checkpoint confirmation required to protect shared Google One AI credit pool."
+        
+    if upscale_duration is not None and upscale_duration > 10:
+        return False, f"Extended upscale ({upscale_duration}s > 10s) incurs per-second billing and requires explicit checkpoint confirmation."
+        
     if is_upscale_4k:
         return False, "4K Upscale (50 credits) requires explicit single-turn confirmation."
+        
     if credit_cost == 0:
         return True, "0-credit action allowed in auto mode."
+        
     if autonomy_mode == "auto":
         return True, f"Auto mode override active: consuming {credit_cost} credits."
+        
     return False, f"Generation costs {credit_cost} credits. Checkpoint confirmation required."
 
 
+def validate_scene_operation_order(operations: List[str]) -> Tuple[bool, str]:
+    """
+    Validate that inline edits occur prior to Extend operations.
+    Live Flow Web UI blocks inline video editing on clips that have been extended.
+    """
+    has_extended = False
+    for op in operations:
+        clean = (op or "").strip().lower()
+        if "extend" in clean:
+            has_extended = True
+        elif ("edit" in clean or "in-place" in clean) and has_extended:
+            return False, "Flow invariant violated: Inline video edits must occur before extending clip. Flow Web blocks editing on extended clips."
+    return True, "Operation sequence is valid."
+
+
 # ---------------------------------------------------------
-# Veo 3.1 5-Slot Grammar & Prompt Compiler
+# Veo 3.1 / Omni 1.2 Five-Slot Grammar & Prompt Compiler
 # ---------------------------------------------------------
 
 VELOCITY_ADVERB_PATTERN = re.compile(
@@ -100,7 +173,7 @@ AUDIO_PREFIX_PATTERN = re.compile(
 
 def validate_veo_prompt_syntax(prompt: str) -> Dict[str, Any]:
     """
-    Validate a Veo 3.1 prompt against lowering rules and syntax guidelines.
+    Validate a Veo 3.1 / Omni 1.2 prompt against lowering rules and syntax guidelines.
     """
     issues = []
     

@@ -1,7 +1,7 @@
 {
   "name": "antigravity-flow",
   "displayName": "Google Flow",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Operate Google Flow (flow.google.com) through Antigravity's built-in browser: plan storyboards, manage Characters and Ingredients, generate Omni/Veo shots, assemble Scenes, run or build Flow Tools, and keep skills synced with live Flow updates.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [

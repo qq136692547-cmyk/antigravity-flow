@@ -20,7 +20,8 @@ Follow `rules/AGENTS.md`:
 - Reuse the active Flow `browser` subagent (`send_message`) so the project tab and generated clip library remain open.
 - Respect `checkpoint` vs. `auto` mode:
   - Creating a scene, adding/reordering existing clips (`Add to scene`, `Add clip`), `Save frame`, and `Download media` do **not** consume credits and can run directly.
-  - **`Extend`** and inline video edits (`"Describe how to edit this video..."`) invoke video generation and **do** consume credits — confirm first in `checkpoint` mode, or run directly in `auto` mode.
+  - **`Extend`** (exclusively Omni 1.2 Flash, 3-10s per extend up to 30s) and inline video edits (`"Describe how to edit this video..."`) invoke video generation and **do** consume credits — confirm first in `checkpoint` mode, or run directly in `auto` mode (up to `MAX_CREDIT_CEILING = 60`).
+- **Timeline Invariant**: All in-place video edits MUST be executed *prior* to applying `Extend`. Flow Web UI blocks inline edits on extended clips.
 
 ## Workflow
 
@@ -28,8 +29,8 @@ Follow `rules/AGENTS.md`:
 
 From `storyboard.md` or the user's request, identify:
 - Ordered list of shots (`S01` -> `S02` -> ...) to include in the scene.
-- Any clips that need AI **`Extend`** on the timeline, along with the continuation prompt.
-- Any clips that need an in-place video edit (`"Describe how to edit this video..."` with `Omni 1.2 Flash` and optional `+` Ingredients).
+- Any clips that need an in-place video edit (`"Describe how to edit this video..."` with `Omni 1.2 Flash` and optional `+` Ingredients) — **execute these first**.
+- Any clips that need AI **`Extend`** on the timeline (exclusively `Omni 1.2 Flash`), along with the continuation prompt.
 - Any frame extractions needed for continuity (**`Save frame`** in the player controls).
 - Desired export destination in the local workspace (e.g., `./outputs/final/<project-name>.mp4`).
 
@@ -55,7 +56,7 @@ Instruct the `browser` subagent:
 
 Instruct the `browser` subagent:
 1. Use the player controls (`Play`, `Skip to previous clip`, `Skip to next clip`) to verify clip transitions and check for any error badges.
-2. Click **`Download media`** in the top bar of the editor, or click **`Done editing scene`** / **`Done`** and use `More options` -> **`Download`** on the card to select from the 4-option submenu (`270p Animated GIF`, `720p Original size`, `1080p Upscaled`, or `4K Upscaled · 50 credits` — confirm first in `checkpoint` mode if selecting `4K Upscaled · 50 credits`). Project-wide export is also available via top-right `More options` -> **`Download project`**.
+2. Click **`Download media`** in the top bar of the editor, or click **`Done editing scene`** / **`Done`** and use `More options` -> **`Download`** on the card to select from the 4-option submenu (`270p Animated GIF`, `720p Original size`, `1080p Upscaled`, or `4K Upscaled · 50 credits` — confirm first in `checkpoint` mode or if duration > 10s incurring per-second billing). Project-wide export is also available via top-right `More options` -> **`Download project`**.
 3. Wait for the download to finish and return the downloaded file path.
 
 ### Step 5: Organize Local Output & Summarize

@@ -1,6 +1,8 @@
-# Google Flow & Veo 3.1 Cinematography & Prompt Guide
+# Google Flow & Veo 3.1 / Omni 1.2 Cinematography & Prompt Guide
 
-Use this reference when authoring video shot prompts and storyboard plans for Google Flow (`https://flow.google.com`) and Veo 3.1 / Omni 1.2 Flash.
+Use this reference when authoring video shot prompts and storyboard plans for Google Flow (`https://flow.google.com`) and Omni 1.2 Flash (flagship) / Veo 3.1 Lite.
+
+> **Model Alignment Note**: The 5-slot sequential grammar applies identically across both `Omni 1.2 Flash` (recommended primary flagship) and `Veo 3.1`. Note that `Veo 3.1 - Quality` and `Veo 3.1 - Fast` are scheduled to retire on Dec 5, 2026, after which `Omni 1.2 Flash` and `Veo 3.1 - Lite` remain the active production models.
 
 ## 1. Veo 3.1 Five-Slot Prompt Formula
 

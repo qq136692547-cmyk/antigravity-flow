@@ -47,7 +47,7 @@ Delegate to the `browser` subagent (or reuse the active Flow `browser` subagent 
 - **Generating new Image Ingredients** (`Mode: Image`, e.g., `Nano Banana 2.1`):
   - Check the live credit readout (`Generating will use <N> credits`) in the `Settings trigger` popover (often `0 credits` for `Nano Banana 2.1` on ULTRA).
   - In `checkpoint` mode: If credits > 0 (or if the user wants approval before creating assets), present the Ingredient prompt(s), model (`Nano Banana 2.1` / `Pro`), aspect ratio, and credit cost, and wait for confirmation.
-  - In `auto` mode: Proceed directly.
+  - In `auto` mode: Proceed directly, enforcing a minimum 2.5-second pacing delay between successive generation dispatches to prevent Flow's rolling 24-hour velocity lockout.
 
 ### Step 4: Upload or Generate Ingredients
 

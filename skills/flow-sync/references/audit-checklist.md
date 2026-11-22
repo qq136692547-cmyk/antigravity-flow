@@ -26,6 +26,7 @@
 4. **Generation Settings (`Settings trigger` in Manual Mode)**
    - **`Image` mode**: Aspect ratios (`16:9`, `4:3`, `1:1`, `3:4`, `9:16`), Models (`Nano Banana Pro`, `Nano Banana 2 Lite`, `Nano Banana 2.1`), `Thinking level` (`Low`/`Medium`/`High`), output counts (`x1`–`x4`), live credit readout.
    - **`Video` mode**: `Video type` (`Frames`, `Ingredients`), Aspect ratios (`16:9`, `9:16`), Models (`Omni 1.2 Flash`, `Veo 3.1 - Lite`, `Veo 3.1 - Lite [Lower Priority]`, plus check deprecation status of `Omni 1.1 Flash`, `Veo 3.1 - Fast`, `Veo 3.1 - Quality`), resolutions (`360p`/`720p`), durations (`4s`–`10s` / slider), output counts (`x1`–`x4`), live credit readout.
+   - **Credit Safeguards**: Fail-Closed on `NaN credits`, ceiling check (`MAX_CREDIT_CEILING = 60`), and dynamic upscale duration gating (>10s).
    - Check if any dedicated Camera Control or Audio panel has been introduced.
 
 5. **Characters & Ingredients (`/project/<id>/character` & `+` / `@` Picker)**

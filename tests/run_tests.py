@@ -44,6 +44,14 @@ from tests.test_tier5_adversarial_cjk import (
     test_redos_safety_on_pathological_inputs,
     test_no_deprecated_models_referenced,
 )
+from tests.test_tier6_credit_adversarial import (
+    test_nan_credits_fail_closed,
+    test_singular_credit_parsing,
+    test_credit_ceiling_protection,
+    test_duration_upscale_math_and_gating,
+    test_rate_limit_pacing_delay,
+    test_scene_editor_extend_before_edit_invariant,
+)
 
 
 def run_all_tiers():
@@ -81,6 +89,14 @@ def run_all_tiers():
             ("redos_safety_on_pathological_inputs", test_redos_safety_on_pathological_inputs),
             ("no_deprecated_models_referenced", test_no_deprecated_models_referenced),
         ]),
+        ("Tier 6: Live Grounding & Credit Adversarial Hardening", [
+            ("nan_credits_fail_closed", test_nan_credits_fail_closed),
+            ("singular_credit_parsing", test_singular_credit_parsing),
+            ("credit_ceiling_protection", test_credit_ceiling_protection),
+            ("duration_upscale_math_and_gating", test_duration_upscale_math_and_gating),
+            ("rate_limit_pacing_delay", test_rate_limit_pacing_delay),
+            ("scene_editor_extend_before_edit_invariant", test_scene_editor_extend_before_edit_invariant),
+        ]),
     ]
 
     total_passed = 0
@@ -88,7 +104,7 @@ def run_all_tiers():
     start_time = time.time()
 
     print("=" * 70)
-    print("STARTING 5-TIER VERIFICATION SUITE FOR antigravity-flow")
+    print("STARTING 6-TIER VERIFICATION SUITE FOR antigravity-flow (v0.3.1)")
     print(f"Target Root: {PLUGIN_ROOT}")
     print("=" * 70)
 

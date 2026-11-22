@@ -26,21 +26,29 @@ Before assuming the user needs to sign in, always verify whether an authenticate
 Account tiers (Pro / Ultra vs. Free) determine whether static image generation costs credits. The plugin never assumes image generation is unconditionally free. It implements a **Live Credit Sniffer** as the single source of truth by reading the live UI indicator prior to clicking `Start generation`:
 
 - **Account Plan Detection**: Check the top-right `Account details` badge for `PRO`, `ULTRA`, or unbadged (Free tier).
-- **Live Indicator Reading**: Inspect the visible text near the bottom composer or Settings popover:
+- **Live Indicator Reading & Fail-Closed Safeguard**: Inspect the visible text near the bottom composer or Settings popover:
   - Regex: `/(?:Generating will use|Costs?)\s+(\d+)\s+credits?/i` or `/\b(\d+)\s+credits?\b/i` or `/\b0\s+credits\b/i`.
+  - **Fail-Closed Gate**: If the UI text displays `"Generating will use NaN credits"`, non-integer values, unparsed text, or is delayed due to SPA hydration, NEVER assume 0 credits. The agent MUST fail closed: treat the cost as unknown and pause in checkpoint mode for explicit user confirmation.
 - **Autonomy Decision Matrix**:
   1. **Zero Credits (`0 credits`)**:
      - Automatically execute in auto mode (unattended, full-auto).
-     - Applies to Nano Banana 2.1 static images on Pro/Ultra accounts, tool creation in `Create tool`, scene creation/reordering, frame extraction (`Save frame`), and standard downloads (`GIF`, `720p`, `1080p`).
+     - Applies to Nano Banana 2.1 static images on Pro/Ultra accounts, tool creation in `Create tool`, scene creation/reordering, frame extraction (`Save frame`), and standard downloads (`GIF`, `720p`, `1080p` up to 10s).
   2. **Paid Credits (`> 0 credits`)**:
      - Pause in checkpoint mode (default).
      - Inform the user of the exact credit cost before clicking `Start generation`:
        `"Generation will consume <N> credits. Proceed?"`
      - Proceed only upon user confirmation.
-  3. **4K Upscaled Export (`50 credits`)**:
-     - Downloading with `4K Upscaled · 50 credits` always triggers a mandatory checkpoint confirmation, even in automated workflows, to avoid unintended bulk credit deductions.
-  4. **Prompt Overrides**:
-     - When the user explicitly requests full automation in the prompt (e.g., `"auto mode"`, `"full-auto"`, `"run unattended"`, `"without asking"`, `"batch generate all"`), proceed automatically for all scheduled shots, while honoring safety boundaries.
+  3. **Shared Google One AI Credit Pool Protection & Ceiling**:
+     - Antigravity and Google Flow share the unified Google One AI credit pool.
+     - Hard Spend Ceiling: Any single action or generation exceeding `MAX_CREDIT_CEILING = 60` credits MUST pause for user confirmation even in `auto` mode to prevent unintentional depletion of the shared pool.
+  4. **Dynamic Upscale Duration Gating**:
+     - 1080p Upscale: 0 credits for 1-10s; 1 credit per second past 10s on Google One AI Plus+.
+     - 4K Upscale: 50 credits for 1-10s; 5 credits per second past 10s on Google One AI Ultra.
+     - Any upscale operation with duration > 10s, as well as any 4K upscale, ALWAYS requires explicit checkpoint confirmation.
+  5. **Inter-Request Pacing Delay (Rate Limit Protection)**:
+     - Google Flow enforces rolling 24-hour velocity limits (`"requesting generations too quickly"`). In automated generation loops (such as `flow-ingredients` or batch `flow-generate`), enforce a minimum pacing delay of `2.5 seconds` between generation dispatches.
+  6. **Prompt Overrides**:
+     - When the user explicitly requests full automation in the prompt (e.g., `"auto mode"`, `"full-auto"`, `"run unattended"`, `"without asking"`, `"batch generate all"`), proceed automatically for all scheduled shots up to `MAX_CREDIT_CEILING = 60`, while honoring safety boundaries.
 
 ## 4. Hard Safety & Platform Boundaries (Both Modes)
 
@@ -71,7 +79,7 @@ Downstream workflows must automatically persist generated outputs into the user'
 Route creative visual requests proactively to Google Flow via this plugin without requiring explicit keywords:
 
 - **Commercial Posters, Banners & Illustrations**: Route to `flow-ingredients` (Nano Banana 2.1).
-- **Film & Commercial Storyboards**: Route to `flow-director` (Veo 3.1 5-slot grammar).
-- **Video Shot Generation & Rendering**: Route to `flow-generate` (Omni 1.2 Flash, Veo 3.1).
-- **Multi-Shot Timeline Sequencing**: Route to `flow-scene-builder`.
+- **Film & Commercial Storyboards**: Route to `flow-director` (Omni 1.2 Flash & Veo 3.1 5-slot grammar).
+- **Video Shot Generation & Rendering**: Route to `flow-generate` (Omni 1.2 Flash primary flagship; Veo 3.1 - Lite secondary baseline. Note: Veo 3.1 Fast, Veo 3.1 Quality, and Omni 1.1 Flash retire on Dec 5, 2026).
+- **Multi-Shot Timeline Sequencing & Invariant**: Route to `flow-scene-builder`. Timeline Invariant: All inline video edits must be executed before applying Extend. Extend is bound exclusively to Omni 1.2 Flash (3-10s per extend, up to 30s total).
 - **Specialized Creative Tools & Mini-Apps**: Route to `flow-tools`.
