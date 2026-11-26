@@ -26,7 +26,7 @@ Extract from the user's request (ask briefly only if critical parameters are mis
   - **Zero-cost / low-cost drafting**: `Veo 3.1 - Lite [Lower Priority]` (0 credits on ULTRA) or `Omni 1.2 Flash` at `360p` draft mode (1 credit/s for rapid blocking).
   - **Hero / final video**: `Omni 1.2 Flash` at `720p` (3 credits/s; industry-leading character and scene consistency; primary recommended flagship; note: 11-15s clips bill seconds 11-15 at double rate). Note that `Veo 3.1 - Quality` and `Veo 3.1 - Fast` retire on Dec 5, 2026, while `Veo 3.1 - Lite` remains active as secondary baseline.
   - **Image Ingredients**: `Nano Banana 2.1` (0 credits on Pro/Ultra) with `Thinking level` (`Low` / `Medium` / `High`).
-- **Autonomy Preference**: Check whether the user requested `auto` mode (e.g., `"auto mode"`, `"full-auto"`, `"run unattended"`) or default `checkpoint` mode.
+- **Autonomy Preference**: Check whether the user requested `auto` mode (e.g., `"auto mode"`, `"full-auto"`, `"run unattended"`) or default `checkpoint` mode. In `auto` mode, recommend `x1` output count by default and plan batches within `MAX_SESSION_DISPATCHES = 12` (including `0-credit` actions) with a randomized `8-15s` pacing cooldown between dispatches.
 
 ### Step 2: Design Consistent Ingredients
 
@@ -78,7 +78,7 @@ Output the plan to `storyboard.md`:
 ### S01 — Entering the Ruins
 - **Video Type**: Ingredients
 - **Ingredients / Frames**: `@hero`
-- **Model**: Omni 1.2 Flash (720p, 8s, x2)
+- **Model**: Omni 1.2 Flash (720p, 8s, x1)
 - **Prompt**: Low-angle tracking shot, 35mm anamorphic lens, slow steady push-in, @hero walks cautiously forward through ancient stone archway, dust motes floating in diagonal beams of morning sunlight, photorealistic cinematic lighting with soft golden haze. Ambient noise: hollow wind whistling through stone corridors. SFX: heavy boot steps echoing on fractured marble.
 - **Audio**: Ambient wind, heavy boot steps
 - **Scene Transition**: Add to scene -> Cut to S02

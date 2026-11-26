@@ -58,6 +58,20 @@ def test_zero_cjk_in_readme_english_section():
     assert len(matches) == 0, f"Found CJK characters in English README section: {matches[:10]}"
 
 
+def test_seven_bit_ascii_in_core_and_runner():
+    """Ensure core manifest, rules, and Windows test runner use 100% 7-bit ASCII (no GBK crashes)."""
+    ascii_files = [
+        PLUGIN_ROOT / "plugin.json",
+        PLUGIN_ROOT / ".gitignore",
+        PLUGIN_ROOT / "rules" / "AGENTS.md",
+        PLUGIN_ROOT / "tests" / "run_tests.py",
+    ]
+    for file_path in ascii_files:
+        content = file_path.read_text(encoding="utf-8")
+        non_ascii = [(idx, ch) for idx, ch in enumerate(content) if ord(ch) > 127]
+        assert len(non_ascii) == 0, f"Non-ASCII chars found in {file_path}: {non_ascii[:10]}"
+
+
 def test_redos_safety_on_pathological_inputs():
     """Verify regex patterns do not suffer from catastrophic ReDoS backtracking."""
     pathological_sniff = "Generating will use " + ("9" * 30000) + " credits?"
@@ -100,9 +114,31 @@ def test_no_deprecated_models_referenced():
             assert dep not in content, f"Deprecated model '{dep}' found in {md_file}"
 
 
+def test_no_forbidden_auto_retry_or_softening_clauses():
+    """Verify legacy risk-control triggers (2.5s delay, auto-retry, backoff, prompt softening) are removed."""
+    forbidden_patterns = [
+        re.compile(r"retry\s+once\s+automatically", re.IGNORECASE),
+        re.compile(r"exponential\s+backoff\s+on\s+retry", re.IGNORECASE),
+        re.compile(r"lightly\s+soften\s+the\s+phrasing\s+once", re.IGNORECASE),
+        re.compile(r"\b2\.5(?:\s*s\b|-second|\s+seconds\b)", re.IGNORECASE),
+    ]
+    files_to_scan = [
+        PLUGIN_ROOT / "rules" / "AGENTS.md",
+        PLUGIN_ROOT / "README.md",
+    ] + list((PLUGIN_ROOT / "skills").rglob("*.md"))
+
+    for file_path in files_to_scan:
+        content = file_path.read_text(encoding="utf-8")
+        for pat in forbidden_patterns:
+            match = pat.search(content)
+            assert match is None, f"Forbidden legacy clause '{match.group(0)}' found in {file_path}"
+
+
 if __name__ == "__main__":
     test_zero_cjk_in_english_codebase()
     test_zero_cjk_in_readme_english_section()
+    test_seven_bit_ascii_in_core_and_runner()
     test_redos_safety_on_pathological_inputs()
     test_no_deprecated_models_referenced()
-    print("Tier 5 Tests PASSED: Adversarial hardening, zero-CJK, and ReDoS safety verified.")
+    test_no_forbidden_auto_retry_or_softening_clauses()
+    print("Tier 5 Tests PASSED: Adversarial hardening, zero-CJK, 7-bit ASCII, and anti-retry checks verified.")

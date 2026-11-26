@@ -17,10 +17,11 @@ Operate Google Flow's **`Scenes`** view and **Clip/Scene Editor** (`/project/<pr
 ## Prerequisites & Shared Rules
 
 Follow `rules/AGENTS.md`:
-- Reuse the active Flow `browser` subagent (`send_message`) so the project tab and generated clip library remain open.
+- Reuse the active Flow `browser` subagent (`send_message`) so the open `/project/<projectId>` tab and generated clip library remain open (project reuse first before creating any new project).
 - Respect `checkpoint` vs. `auto` mode:
   - Creating a scene, adding/reordering existing clips (`Add to scene`, `Add clip`), `Save frame`, and `Download media` do **not** consume credits and can run directly.
-  - **`Extend`** (exclusively Omni 1.2 Flash, 3-10s per extend up to 30s) and inline video edits (`"Describe how to edit this video..."`) invoke video generation and **do** consume credits — confirm first in `checkpoint` mode, or run directly in `auto` mode (up to `MAX_CREDIT_CEILING = 60`).
+  - **`Extend`** (exclusively Omni 1.2 Flash, 3-10s per extend up to 30s) and inline video edits (`"Describe how to edit this video..."`) invoke video generation and **do** consume credits — confirm first in `checkpoint` mode, or run directly in `auto` mode (up to `MAX_CREDIT_CEILING = 60`, `MAX_SESSION_DISPATCHES = 12` including `0-credit` actions, and randomized `8-15s` pacing jitter between successive dispatches).
+- Enforce zero-retry (`retry_count = 0`) hard-stop boundaries (`PAUSED_*`) on `ACCOUNT_VERIFICATION_REQUIRED`, `CAPTCHA_REQUIRED`, `RATE_LIMITED`, `WAF_BLOCKED`, `SAFETY_BLOCKED`, `LOGIN_REQUIRED`, and `PAYMENT_REQUIRED` (no auto-retry, no blind refresh-resubmit, no prompt softening).
 - **Timeline Invariant**: All in-place video edits MUST be executed *prior* to applying `Extend`. Flow Web UI blocks inline edits on extended clips.
 
 ## Workflow
@@ -47,9 +48,11 @@ Instruct the `browser` subagent:
 
 - **Save frame** (no credits): Scrub to the desired timestamp in the player and click **`Save frame`** to capture a clean keyframe asset for downstream `Frames` generation.
 - **Extend** (consumes credits):
+  - Wait a randomized `8-15s` pacing cooldown after any prior dispatch and respect `MAX_SESSION_DISPATCHES = 12`.
   - In `checkpoint` mode: Confirm the extension prompt and model before triggering generation.
-  - In `auto` mode: Open the timeline **`Add clip`** menu -> select **`Extend`**, enter the continuation prompt, trigger generation, and verify the new segment attaches cleanly to the timeline.
+  - In `auto` mode: Open the timeline **`Add clip`** menu -> select **`Extend`**, enter the continuation prompt, trigger generation, wait without blind refresh-resubmit (inspect banners first if stuck, pausing with `retry_count = 0` on any error), and verify the new segment attaches cleanly to the timeline.
 - **In-place Video Edit** (consumes credits):
+  - Wait a randomized `8-15s` pacing cooldown after any prior dispatch and respect `MAX_SESSION_DISPATCHES = 12`.
   - In the editor's bottom composer (`"Describe how to edit this video..."`), optionally attach Ingredients via `+`, choose `Select model family` (`Omni 1.2 Flash`), and confirm (in `checkpoint` mode) or click **`Start generation`** (in `auto` mode).
 
 ### Step 4: Preview & Download Final Video

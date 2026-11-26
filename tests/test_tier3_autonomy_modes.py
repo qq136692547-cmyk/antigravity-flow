@@ -2,7 +2,13 @@
 Tier 3: Autonomy Modes, Safety Bounds & Prompt Trigger Tests
 """
 
-from tests.conftest import detect_autonomy_mode, should_auto_proceed
+from tests.conftest import (
+    HARD_STOP_BOUNDARIES,
+    classify_platform_error,
+    detect_autonomy_mode,
+    handle_platform_boundary,
+    should_auto_proceed,
+)
 
 
 def test_detect_autonomy_mode_english_triggers():
@@ -56,16 +62,42 @@ def test_hard_safety_gates_and_4k_upscale():
 
 
 def test_safety_boundary_simulation():
-    # Simulate platform boundary handler
-    def handle_platform_boundary(error_type: str) -> dict:
-        if error_type in ["LOGIN_REQUIRED", "CAPTCHA_REQUIRED", "PAYMENT_REQUIRED"]:
-            return {"action": "pause_for_user", "status": error_type}
-        return {"action": "continue", "status": "OK"}
+    # Verify zero-retry hard-stop PAUSED_* boundaries across all 7 platform/safety gates
+    for err in HARD_STOP_BOUNDARIES:
+        res = handle_platform_boundary(err)
+        assert res["action"] == "pause_for_user", f"Expected pause_for_user for {err}"
+        assert res["status"] == f"PAUSED_{err}", f"Expected PAUSED_{err}, got {res['status']}"
+        assert res["retry_count"] == 0, f"Expected zero-retry for {err}"
+        assert res["allow_refresh_resubmit"] is False
+        assert res["allow_prompt_softening"] is False
 
-    assert handle_platform_boundary("LOGIN_REQUIRED")["action"] == "pause_for_user"
-    assert handle_platform_boundary("CAPTCHA_REQUIRED")["action"] == "pause_for_user"
-    assert handle_platform_boundary("PAYMENT_REQUIRED")["action"] == "pause_for_user"
-    assert handle_platform_boundary("NONE")["action"] == "continue"
+    ok_res = handle_platform_boundary("NONE")
+    assert ok_res["action"] == "continue"
+    assert ok_res["status"] == "OK"
+    assert ok_res["retry_count"] == 0
+
+
+def test_platform_error_signal_classification():
+    cases = [
+        ("Your account must be verified at https://flow.google.com/verify-account", None, "ACCOUNT_VERIFICATION_REQUIRED"),
+        ("Please complete the reCAPTCHA challenge to continue", None, "CAPTCHA_REQUIRED"),
+        ("Error: requesting generations too quickly", None, "RATE_LIMITED"),
+        ("Too many requests", 429, "RATE_LIMITED"),
+        ("Our systems have detected unusual traffic from your computer network", 403, "WAF_BLOCKED"),
+        ("Cloudflare Turnstile verification blocked access", None, "WAF_BLOCKED"),
+        ("Generation blocked by content policy safety filter", None, "SAFETY_BLOCKED"),
+        ("Redirected to accounts.google.com Sign in", None, "LOGIN_REQUIRED"),
+        ("Insufficient credits: top up to continue", None, "PAYMENT_REQUIRED"),
+    ]
+    for signal_text, status_code, expected_err in cases:
+        classified = classify_platform_error(signal_text=signal_text, status_code=status_code)
+        assert classified == expected_err, f"Expected {expected_err} for {signal_text!r}, got {classified!r}"
+        res = handle_platform_boundary(signal_text=signal_text, status_code=status_code)
+        assert res["action"] == "pause_for_user"
+        assert res["status"] == f"PAUSED_{expected_err}"
+        assert res["retry_count"] == 0
+
+    assert classify_platform_error("Generating will use 0 credits", status_code=200) is None
 
 
 if __name__ == "__main__":
@@ -74,4 +106,5 @@ if __name__ == "__main__":
     test_detect_autonomy_mode_default_checkpoint()
     test_hard_safety_gates_and_4k_upscale()
     test_safety_boundary_simulation()
-    print("Tier 3 Tests PASSED: Autonomy mode transitions and safety gates verified.")
+    test_platform_error_signal_classification()
+    print("Tier 3 Tests PASSED: Autonomy mode transitions and zero-retry safety gates verified.")

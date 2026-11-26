@@ -15,9 +15,11 @@ Manage Google Flow projects and build a consistent library of **Ingredients** (`
 
 Follow the plugin rules in `rules/AGENTS.md` for:
 - Browser subagent delegation (`TypeName: "browser"`, `Model: "flash"`) and session reuse via `send_message`.
-- Fast-Path Authentication Check directly at `https://flow.google.com/`.
-- Autonomy mode (`checkpoint` by default; `auto` when requested in the prompt).
-- Hard pauses for Google sign-in, CAPTCHA, or credit/payment blocks.
+- Fast-Path Authentication Check directly at `https://flow.google.com/?hl=en`.
+- Project reuse first: reuse an already-open `/project/<id>` tab or existing dashboard project before creating a new project.
+- Autonomy mode (`checkpoint` by default; `auto` when requested in the prompt, recommending `x1` output count).
+- Session dispatch cap (`MAX_SESSION_DISPATCHES = 12`, including `0-credit` actions) and randomized `8-15s` pacing jitter between successive dispatches.
+- Zero-retry (`retry_count = 0`) hard-stop pause boundaries (`PAUSED_*`) for `ACCOUNT_VERIFICATION_REQUIRED`, `CAPTCHA_REQUIRED`, `RATE_LIMITED`, `WAF_BLOCKED`, `SAFETY_BLOCKED`, `LOGIN_REQUIRED`, and `PAYMENT_REQUIRED`.
 
 ## Workflow
 
@@ -32,13 +34,13 @@ For every local image/media file to upload as an Ingredient:
 
 Delegate to the `browser` subagent (or reuse the active Flow `browser` subagent via `send_message`):
 
-- **Target URL**: `https://flow.google.com/` (never use legacy `labs.google/fx/tools/flow` redirects)
+- **Target URL**: `https://flow.google.com/?hl=en` (never use legacy `labs.google/fx/tools/flow` redirects)
 - **Instructions for the browser subagent**:
-  1. If not already on `https://flow.google.com/`, navigate directly to `https://flow.google.com/`.
+  1. If not already on `https://flow.google.com/...`, navigate directly to `https://flow.google.com/?hl=en`.
   2. Run the **Fast-Path Authentication Check** from `rules/AGENTS.md`: inspect the above-the-fold screenshot, DOM (`Account details` avatar button, floating `+ New project` button, `Open project` cards, absence of `Sign in`), and network (`batchexecute` HTTP `200`).
      - If signed in, proceed immediately without pausing.
-     - Only stop and report `LOGIN_REQUIRED` if directly blocked on `accounts.google.com` or shown a logged-out `Sign in` screen.
-  3. On the Flow dashboard, either open the requested existing project (`/project/<id>`) or click **`+ New project`** and edit the top-left project title textbox to rename it.
+     - Only stop and report `PAUSED_LOGIN_REQUIRED` (`LOGIN_REQUIRED`, `retry_count = 0`) if directly blocked on `accounts.google.com` or shown a logged-out `Sign in` screen.
+  3. **Project Reuse First**: On the Flow dashboard, reuse an already-open `/project/<id>` tab or open an existing matching/default project (`/project/<id>`) first. Only click **`+ New project`** (and edit the top-left project title textbox to rename it) when explicitly requested by the user or when no suitable existing project exists.
   4. Report the active project title, URL, and current credit balance (visible in `Account details` if needed).
 
 ### Step 3: Check Autonomy Mode (If Generating New Ingredients)
@@ -47,7 +49,7 @@ Delegate to the `browser` subagent (or reuse the active Flow `browser` subagent 
 - **Generating new Image Ingredients** (`Mode: Image`, e.g., `Nano Banana 2.1`):
   - Check the live credit readout (`Generating will use <N> credits`) in the `Settings trigger` popover (often `0 credits` for `Nano Banana 2.1` on ULTRA).
   - In `checkpoint` mode: If credits > 0 (or if the user wants approval before creating assets), present the Ingredient prompt(s), model (`Nano Banana 2.1` / `Pro`), aspect ratio, and credit cost, and wait for confirmation.
-  - In `auto` mode: Proceed directly, enforcing a minimum 2.5-second pacing delay between successive generation dispatches to prevent Flow's rolling 24-hour velocity lockout.
+  - In `auto` mode: Proceed directly using `x1` output count by default, enforcing a **randomized `8-15s` pacing cooldown** between successive generation/character dispatches and respecting `MAX_SESSION_DISPATCHES = 12` (including `0-credit` actions) to prevent Flow's rolling 24-hour velocity lockout.
 
 ### Step 4: Upload or Generate Ingredients
 
@@ -65,9 +67,9 @@ Send a follow-up instruction to the same `browser` subagent:
   3. Rename the uploaded asset via its card `More options` -> **`Rename`** if needed so it is easy to find by name, and verify it appears under `All media` / `Uploads` (or the `@` picker).
 - **For `generate` Image Ingredients**:
   1. Ensure the bottom composer's **`Flow Agent` toggle is OFF** (Manual Mode) for deterministic settings control.
-  2. Click the **`Settings trigger`** button -> select **`Image`** -> configure Aspect ratio (`16:9`, `4:3`, `1:1`, `3:4`, `9:16`), Model (`Nano Banana 2.1`, `Nano Banana 2 Lite`, or `Nano Banana Pro`), `Thinking level` (`Low` / `Medium` / `High`), and Output count (`x1`–`x4`).
-  3. Enter the asset prompt in `"What do you want to create?"` and click **`Start generation`**.
-  4. Wait for generation to finish, visually inspect candidates, **`Favorite`** or **`Rename`** the cleanest pick (and optionally use `Add to prompt` or `+` -> `Create character` for character sheets).
+  2. Click the **`Settings trigger`** button -> select **`Image`** -> configure Aspect ratio (`16:9`, `4:3`, `1:1`, `3:4`, `9:16`), Model (`Nano Banana 2.1`, `Nano Banana 2 Lite`, or `Nano Banana Pro`), `Thinking level` (`Low` / `Medium` / `High`), and Output count (`x1` recommended default in `auto` mode; `x1`–`x4` available).
+  3. Enter the asset prompt in `"What do you want to create?"`, wait for the randomized `8-15s` cooldown if preceded by another dispatch, and click **`Start generation`**.
+  4. Wait for generation to finish without blind refresh-and-resubmit (if stuck, inspect banners/network for `RATE_LIMITED`, `WAF_BLOCKED`, `CAPTCHA_REQUIRED`, `ACCOUNT_VERIFICATION_REQUIRED`, or `SAFETY_BLOCKED` and pause immediately with `retry_count = 0`). Visually inspect candidates, **`Favorite`** or **`Rename`** the cleanest pick (and optionally use `Add to prompt` or `+` -> `Create character` for character sheets).
 
 ### Step 5: Record Ingredient Inventory & Hand Off
 

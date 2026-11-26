@@ -1,5 +1,5 @@
 """
-Master Test Runner for antigravity-flow (5-Tier Test Suite)
+Master Test Runner for antigravity-flow (6-Tier Test Suite, v0.3.2)
 """
 
 import sys
@@ -30,6 +30,7 @@ from tests.test_tier3_autonomy_modes import (
     test_detect_autonomy_mode_default_checkpoint,
     test_hard_safety_gates_and_4k_upscale,
     test_safety_boundary_simulation,
+    test_platform_error_signal_classification,
 )
 from tests.test_tier4_storyboard_compiler import (
     test_valid_veo_prompt_5_slot_grammar,
@@ -41,8 +42,10 @@ from tests.test_tier4_storyboard_compiler import (
 from tests.test_tier5_adversarial_cjk import (
     test_zero_cjk_in_english_codebase,
     test_zero_cjk_in_readme_english_section,
+    test_seven_bit_ascii_in_core_and_runner,
     test_redos_safety_on_pathological_inputs,
     test_no_deprecated_models_referenced,
+    test_no_forbidden_auto_retry_or_softening_clauses,
 )
 from tests.test_tier6_credit_adversarial import (
     test_nan_credits_fail_closed,
@@ -51,10 +54,12 @@ from tests.test_tier6_credit_adversarial import (
     test_negative_and_decimal_rejection,
     test_singular_and_standard_credit_parsing,
     test_credit_ceiling_and_session_cap,
+    test_zero_credit_session_dispatch_cap,
     test_duration_upscale_math_and_gating,
     test_rate_limit_pacing_delay,
     test_scene_editor_extend_before_edit_invariant,
     test_live_rules_markdown_consistency,
+    test_canonical_hl_en_and_project_reuse_consistency,
 )
 
 
@@ -79,6 +84,7 @@ def run_all_tiers():
             ("detect_autonomy_mode_default_checkpoint", test_detect_autonomy_mode_default_checkpoint),
             ("hard_safety_gates_and_4k_upscale", test_hard_safety_gates_and_4k_upscale),
             ("safety_boundary_simulation", test_safety_boundary_simulation),
+            ("platform_error_signal_classification", test_platform_error_signal_classification),
         ]),
         ("Tier 4: Veo 3.1 5-Slot Grammar & Storyboard Parsing", [
             ("valid_veo_prompt_5_slot_grammar", test_valid_veo_prompt_5_slot_grammar),
@@ -90,8 +96,10 @@ def run_all_tiers():
         ("Tier 5: Adversarial Hardening & Zero-CJK Verification", [
             ("zero_cjk_in_english_codebase", test_zero_cjk_in_english_codebase),
             ("zero_cjk_in_readme_english_section", test_zero_cjk_in_readme_english_section),
+            ("seven_bit_ascii_in_core_and_runner", test_seven_bit_ascii_in_core_and_runner),
             ("redos_safety_on_pathological_inputs", test_redos_safety_on_pathological_inputs),
             ("no_deprecated_models_referenced", test_no_deprecated_models_referenced),
+            ("no_forbidden_auto_retry_or_softening_clauses", test_no_forbidden_auto_retry_or_softening_clauses),
         ]),
         ("Tier 6: Live Grounding & Credit Adversarial Hardening", [
             ("nan_credits_fail_closed", test_nan_credits_fail_closed),
@@ -100,10 +108,12 @@ def run_all_tiers():
             ("negative_and_decimal_rejection", test_negative_and_decimal_rejection),
             ("singular_and_standard_credit_parsing", test_singular_and_standard_credit_parsing),
             ("credit_ceiling_and_session_cap", test_credit_ceiling_and_session_cap),
+            ("zero_credit_session_dispatch_cap", test_zero_credit_session_dispatch_cap),
             ("duration_upscale_math_and_gating", test_duration_upscale_math_and_gating),
             ("rate_limit_pacing_delay", test_rate_limit_pacing_delay),
             ("scene_editor_extend_before_edit_invariant", test_scene_editor_extend_before_edit_invariant),
             ("live_rules_markdown_consistency", test_live_rules_markdown_consistency),
+            ("canonical_hl_en_and_project_reuse_consistency", test_canonical_hl_en_and_project_reuse_consistency),
         ]),
     ]
 
@@ -112,7 +122,7 @@ def run_all_tiers():
     start_time = time.time()
 
     print("=" * 70)
-    print("STARTING 6-TIER VERIFICATION SUITE FOR antigravity-flow (v0.3.1)")
+    print("STARTING 6-TIER VERIFICATION SUITE FOR antigravity-flow (v0.3.2)")
     print(f"Target Root: {PLUGIN_ROOT}")
     print("=" * 70)
 
@@ -123,11 +133,11 @@ def run_all_tiers():
         for test_name, test_fn in tests:
             try:
                 test_fn()
-                print(f"    ✓ {test_name}")
+                print(f"    [PASS] {test_name}")
                 tier_passed += 1
                 total_passed += 1
             except Exception as e:
-                print(f"    ✗ {test_name}: {e}")
+                print(f"    [FAIL] {test_name}: {e}")
                 tier_failed += 1
                 total_failed += 1
         print(f"    Result: {tier_passed}/{len(tests)} passed.")

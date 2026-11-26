@@ -16,10 +16,13 @@ Operate Google Flow's **`Explore tools`** ecosystem (`/project/<projectId>/tools
 ## Prerequisites & Shared Rules
 
 Follow `rules/AGENTS.md`:
-- Reuse the active Flow `browser` subagent (`send_message`) whenever one is open; otherwise open `https://flow.google.com/` directly (`Model: "flash"`) and run the Fast-Path Authentication Check.
+- Reuse the active Flow `browser` subagent (`send_message`) whenever one is open; otherwise open `https://flow.google.com/?hl=en` directly (`Model: "flash"`) and run the Fast-Path Authentication Check.
+- **Project Reuse First**: Reuse an already-open `/project/<id>` tab or an existing matching/default project on the dashboard before creating a new project.
 - Respect `checkpoint` vs. `auto` mode:
   - Browsing tools and **building a new custom tool in `Create tool`** currently cost **0 credits** (`"Creating tools does not currently cost credits"`).
   - Running generative steps inside an opened tool may consume credits depending on the underlying model — confirm first in `checkpoint` mode when a tool action triggers paid generation.
+  - Enforce `MAX_SESSION_DISPATCHES = 12` (including `0-credit` tool runs and `Create tool` dispatches) and a randomized `8-15s` pacing jitter between successive generation/tool dispatches.
+  - Enforce zero-retry (`retry_count = 0`) hard-stop pause boundaries (`PAUSED_*`) on `ACCOUNT_VERIFICATION_REQUIRED`, `CAPTCHA_REQUIRED`, `RATE_LIMITED`, `WAF_BLOCKED`, `SAFETY_BLOCKED`, `LOGIN_REQUIRED`, and `PAYMENT_REQUIRED`.
 
 ## Workflow A: Run an Existing Flow Tool (`Explore tools`)
 
@@ -43,7 +46,7 @@ Instruct the `browser` subagent:
 2. Select the target tab (`My Tools`, `Community`, or `Templates`) in the top radio group.
 3. Locate and open the requested tool card.
 4. Upload staged media (or select existing project assets) and configure the tool's controls according to the user's goal.
-5. In `checkpoint` mode, pause before clicking any credit-consuming generation action; in `auto` mode, run end-to-end.
+5. Wait a randomized `8-15s` pacing cooldown after any prior dispatch and check `MAX_SESSION_DISPATCHES = 12` (including `0-credit` actions). In `checkpoint` mode, pause before clicking any credit-consuming generation action; in `auto` mode, run end-to-end (pausing with `retry_count = 0` on any platform/safety error without blind refresh-resubmit).
 6. Verify the output visually, save to the project or download to local disk if requested, and return the result.
 
 ## Workflow B: Build a Custom Tool (`Create tool`)
@@ -62,5 +65,5 @@ Before opening `Create tool`, clarify or draft a crisp specification covering:
 Instruct the `browser` subagent:
 1. Click **`Create tool`** in the left sidebar (or **`Create New`** under `My Tools`), opening `/project/<projectId>/create-tool` (`New tool`).
 2. Either click one of the starter presets (`Voice over`, `Time stretcher`, `Style morph`) or enter the custom specification into the bottom prompt box (`"Build a retro pixel effect app with a large upload drop zone and a settings sidebar."`).
-3. Click **`Start generation`** (0 credits) and wait for the generated mini-app to render.
+3. Wait a randomized `8-15s` pacing cooldown after any prior dispatch, verify `MAX_SESSION_DISPATCHES = 12`, click **`Start generation`** (0 credits), and wait for the generated mini-app to render without blind refresh-resubmit (inspect banners/network first if stuck).
 4. Visually inspect the generated tool UI, report any missing controls or layout issues, and offer to iterate on the tool prompt or run it on the user's project media.

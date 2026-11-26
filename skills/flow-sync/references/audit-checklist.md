@@ -9,9 +9,9 @@
 
 ## 7 Canonical Audit Surfaces (Strictly Read-Only, Zero Credits)
 
-1. **Dashboard (`https://flow.google.com/`)**
-   - Verify canonical URL (no forced `accounts.google.com` hop when signed in).
-   - Verify signed-in signals: `Account details` button (avatar + tier badge), `+ New project`, `Sort projects`, `/project/<id>` cards, `batchexecute` HTTP `200`.
+1. **Dashboard (`https://flow.google.com/?hl=en`)**
+   - Verify canonical `?hl=en` URL (no forced `accounts.google.com` hop when signed in).
+   - Verify signed-in signals: `Account details` button (avatar + tier badge), `+ New project`, `Sort projects`, `/project/<id>` cards (project reuse first), `batchexecute` HTTP `200`.
    - Record promotional banners and top-level nav links (`Flow Music`, `Flow TV`, etc.).
 
 2. **Changelogs (`https://flow.google.com/changelogs`)**
@@ -26,7 +26,7 @@
 4. **Generation Settings (`Settings trigger` in Manual Mode)**
    - **`Image` mode**: Aspect ratios (`16:9`, `4:3`, `1:1`, `3:4`, `9:16`), Models (`Nano Banana Pro`, `Nano Banana 2 Lite`, `Nano Banana 2.1`), `Thinking level` (`Low`/`Medium`/`High`), output counts (`x1`–`x4`), live credit readout.
    - **`Video` mode**: `Video type` (`Frames`, `Ingredients`), Aspect ratios (`16:9`, `9:16`), Models (`Omni 1.2 Flash`, `Veo 3.1 - Lite`, `Veo 3.1 - Lite [Lower Priority]`, plus check deprecation status of `Omni 1.1 Flash`, `Veo 3.1 - Fast`, `Veo 3.1 - Quality`), resolutions (`360p`/`720p`), durations (`4s`–`10s` / slider), output counts (`x1`–`x4`), live credit readout.
-   - **Credit Safeguards**: Fail-Closed on `NaN credits`, ceiling check (`MAX_CREDIT_CEILING = 60`), and dynamic upscale duration gating (>10s).
+   - **Credit & Anti-Risk Safeguards**: Fail-Closed on `NaN credits`, ceiling check (`MAX_CREDIT_CEILING = 60`), `MAX_SESSION_CREDITS = 120`, `MAX_SESSION_DISPATCHES = 12` (including `0-credit` actions), `x1` auto default, dynamic upscale duration gating (>10s), randomized `8-15s` pacing jitter, and zero-retry (`retry_count = 0`) `PAUSED_*` circuit breakers (`ACCOUNT_VERIFICATION_REQUIRED`, `CAPTCHA_REQUIRED`, `RATE_LIMITED`, `WAF_BLOCKED`, `SAFETY_BLOCKED`, `LOGIN_REQUIRED`, `PAYMENT_REQUIRED`).
    - Check if any dedicated Camera Control or Audio panel has been introduced.
 
 5. **Characters & Ingredients (`/project/<id>/character` & `+` / `@` Picker)**

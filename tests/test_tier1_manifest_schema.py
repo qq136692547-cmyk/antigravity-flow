@@ -18,7 +18,7 @@ def test_plugin_json_schema():
         
     assert data.get("name") == "antigravity-flow"
     assert data.get("displayName") == "Google Flow"
-    assert data.get("version") == "0.3.1"
+    assert data.get("version") == "0.3.2"
     assert len(data.get("description", "")) > 20
     
     # Check author & repository links
@@ -48,6 +48,20 @@ def test_rules_agents_md():
     assert "Live Credit Sniffer" in content
     assert "Fail-Closed" in content
     assert "MAX_CREDIT_CEILING" in content
+    assert "MAX_SESSION_DISPATCHES" in content
+    assert "https://flow.google.com/?hl=en" in content
+    assert "retry_count = 0" in content
+    assert "8-15" in content
+    for boundary in (
+        "ACCOUNT_VERIFICATION_REQUIRED",
+        "CAPTCHA_REQUIRED",
+        "RATE_LIMITED",
+        "WAF_BLOCKED",
+        "SAFETY_BLOCKED",
+        "LOGIN_REQUIRED",
+        "PAYMENT_REQUIRED",
+    ):
+        assert boundary in content, f"Missing boundary {boundary} in rules/AGENTS.md"
     assert re.search(r"auto\s+mode", content, re.I) is not None
     assert re.search(r"checkpoint\s+mode", content, re.I) is not None
     assert "4K Upscaled" in content or "4K Upscale" in content

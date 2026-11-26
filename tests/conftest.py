@@ -3,6 +3,7 @@ Shared fixtures, regex parsers, and utilities for the antigravity-flow 6-tier te
 """
 
 import os
+import random
 import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -13,9 +14,23 @@ PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 # Constants: Safety Ceilings, Pacing & Boundaries
 # ---------------------------------------------------------
 
+CANONICAL_ENTRY_URL = "https://flow.google.com/?hl=en"
 MAX_CREDIT_CEILING = 60
-PACING_DELAY_SECONDS = 2.5
+PACING_DELAY_MIN_SECONDS = 8
+PACING_DELAY_MAX_SECONDS = 15
 MAX_SESSION_CREDITS = 120
+MAX_SESSION_DISPATCHES = 12
+AUTO_DEFAULT_OUTPUT_COUNT = 1
+
+HARD_STOP_BOUNDARIES = (
+    "ACCOUNT_VERIFICATION_REQUIRED",
+    "CAPTCHA_REQUIRED",
+    "RATE_LIMITED",
+    "WAF_BLOCKED",
+    "SAFETY_BLOCKED",
+    "LOGIN_REQUIRED",
+    "PAYMENT_REQUIRED",
+)
 
 # ---------------------------------------------------------
 # Regex Definitions for Live Credit Sniffer & Autonomy Modes
@@ -112,6 +127,80 @@ def calculate_upscale_cost(duration_seconds: int, resolution: str) -> Optional[i
     return None
 
 
+def sample_pacing_delay(rng: Optional[random.Random] = None) -> float:
+    """Sample a randomized pacing cooldown within [8, 15] seconds."""
+    generator = rng if rng is not None else random.Random()
+    return generator.uniform(PACING_DELAY_MIN_SECONDS, PACING_DELAY_MAX_SECONDS)
+
+
+def is_valid_pacing_delay(delay_seconds: Any) -> bool:
+    """Validate that a pacing delay falls inside the randomized 8-15s jitter window."""
+    if isinstance(delay_seconds, bool) or not isinstance(delay_seconds, (int, float)):
+        return False
+    return PACING_DELAY_MIN_SECONDS <= float(delay_seconds) <= PACING_DELAY_MAX_SECONDS
+
+
+def classify_platform_error(signal_text: str = "", status_code: Optional[int] = None) -> Optional[str]:
+    """
+    Classify live Flow error banners / HTTP status telemetry into a zero-retry boundary code.
+    """
+    text = (signal_text or "").strip().lower()
+
+    if any(tok in text for tok in ("verify-account", "your account must be verified", "account verification", "verify your account")):
+        return "ACCOUNT_VERIFICATION_REQUIRED"
+
+    if any(tok in text for tok in ("recaptcha", "g-recaptcha", "captcha", "i'm not a robot", "verify you are human")):
+        return "CAPTCHA_REQUIRED"
+
+    if status_code == 403 or any(tok in text for tok in ("unusual traffic", "turnstile", "cf-chl", "cloudflare", "waf", "access denied")):
+        return "WAF_BLOCKED"
+
+    if status_code == 429 or any(tok in text for tok in ("requesting generations too quickly", "too many requests", "rate limit", "rate_limited")):
+        return "RATE_LIMITED"
+
+    if any(tok in text for tok in ("safety", "policy filter", "content policy", "violates our", "unsafe content", "harm_category", "flagged for policy")):
+        return "SAFETY_BLOCKED"
+
+    if any(tok in text for tok in ("accounts.google.com", "sign in", "login_required", "session expired")):
+        return "LOGIN_REQUIRED"
+
+    if any(tok in text for tok in ("payment_required", "insufficient credits", "out of credits", "quota exhausted", "top up")):
+        return "PAYMENT_REQUIRED"
+
+    return None
+
+
+def handle_platform_boundary(
+    error_type: Optional[str] = None,
+    signal_text: str = "",
+    status_code: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Zero-retry hard-stop circuit breaker for platform and safety boundaries.
+    Enforces retry_count = 0, no blind refresh-resubmit, and no automated prompt softening.
+    """
+    resolved = (error_type or "").strip().upper()
+    if resolved not in HARD_STOP_BOUNDARIES:
+        resolved = classify_platform_error(signal_text=signal_text, status_code=status_code) or ""
+
+    if resolved in HARD_STOP_BOUNDARIES:
+        return {
+            "action": "pause_for_user",
+            "status": f"PAUSED_{resolved}",
+            "error_type": resolved,
+            "retry_count": 0,
+            "allow_refresh_resubmit": False,
+            "allow_prompt_softening": False,
+        }
+
+    return {
+        "action": "continue",
+        "status": "OK",
+        "error_type": None,
+        "retry_count": 0,
+    }
+
+
 def should_auto_proceed(
     credit_cost: Optional[int],
     autonomy_mode: str,
@@ -121,10 +210,13 @@ def should_auto_proceed(
     upscale_resolution: Optional[str] = None,
     session_spent_credits: int = 0,
     max_session_credits: int = MAX_SESSION_CREDITS,
+    session_dispatches: int = 0,
+    max_session_dispatches: int = MAX_SESSION_DISPATCHES,
 ) -> Tuple[bool, str]:
     """
     Evaluate whether browser automation can proceed without pausing:
     - Fail-Closed: Invalid/unparsed cost halts immediately.
+    - Dispatch Cap: Cumulative session dispatches >= MAX_SESSION_DISPATCHES (12) halts even for 0-credit actions.
     - Tier Gating: 4K requires Ultra; 720p/1080p video upscaling requires Plus/Pro/Ultra.
     - Upscale Gating: 4K or duration > 10s halts for checkpoint confirmation.
     - Single Ceiling: Cost > MAX_CREDIT_CEILING (60) halts.
@@ -132,6 +224,9 @@ def should_auto_proceed(
     """
     if not is_valid_credit_cost(credit_cost):
         return False, "Fail-closed: Unable to determine credit cost (possible NaN or unparsed UI). Checkpoint pause required."
+
+    if session_dispatches >= max_session_dispatches:
+        return False, f"Session dispatch cap reached ({session_dispatches} >= {max_session_dispatches}). Pause required even for 0-credit actions."
 
     res_norm = (upscale_resolution or "").strip().lower()
     tier_norm = (account_tier or "ultra").strip().lower()

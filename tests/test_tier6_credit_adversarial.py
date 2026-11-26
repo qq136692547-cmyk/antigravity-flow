@@ -2,13 +2,20 @@
 Tier 6: Live Grounding & Credit Adversarial Hardening Tests
 """
 
-from pathlib import Path
+import random
+import re
 from tests.conftest import (
     PLUGIN_ROOT,
+    CANONICAL_ENTRY_URL,
     MAX_CREDIT_CEILING,
     MAX_SESSION_CREDITS,
-    PACING_DELAY_SECONDS,
+    MAX_SESSION_DISPATCHES,
+    PACING_DELAY_MIN_SECONDS,
+    PACING_DELAY_MAX_SECONDS,
+    AUTO_DEFAULT_OUTPUT_COUNT,
     is_valid_credit_cost,
+    is_valid_pacing_delay,
+    sample_pacing_delay,
     parse_credit_cost,
     calculate_upscale_cost,
     should_auto_proceed,
@@ -115,6 +122,30 @@ def test_credit_ceiling_and_session_cap():
     assert "cumulative session ceiling" in reason
 
 
+def test_zero_credit_session_dispatch_cap():
+    """Verify MAX_SESSION_DISPATCHES (12) halts automation even for 0-credit actions."""
+    assert MAX_SESSION_DISPATCHES == 12
+    assert AUTO_DEFAULT_OUTPUT_COUNT == 1
+
+    # 11th prior dispatch (index 11 -> 12th action) still allowed for 0 credits
+    can_proceed, _ = should_auto_proceed(
+        credit_cost=0,
+        autonomy_mode="auto",
+        session_dispatches=11,
+    )
+    assert can_proceed is True
+
+    # At 12 dispatches, even 0-credit actions MUST pause
+    can_proceed, reason = should_auto_proceed(
+        credit_cost=0,
+        autonomy_mode="auto",
+        session_dispatches=12,
+    )
+    assert can_proceed is False
+    assert "Session dispatch cap reached" in reason
+    assert "0-credit" in reason
+
+
 def test_duration_upscale_math_and_gating():
     """Verify dynamic duration upscale pricing (>10s) and tier subscription gating."""
     # 720p / 1080p math
@@ -166,9 +197,21 @@ def test_duration_upscale_math_and_gating():
 
 
 def test_rate_limit_pacing_delay():
-    """Verify 2.5s pacing delay constant to avoid rolling 24h velocity lockouts."""
-    assert PACING_DELAY_SECONDS >= 2.0
-    assert PACING_DELAY_SECONDS == 2.5
+    """Verify randomized 8-15s pacing jitter bounds to avoid rolling 24h velocity lockouts."""
+    assert PACING_DELAY_MIN_SECONDS == 8
+    assert PACING_DELAY_MAX_SECONDS == 15
+
+    rng = random.Random(42)
+    samples = [sample_pacing_delay(rng) for _ in range(16)]
+    assert all(is_valid_pacing_delay(s) for s in samples), f"Out-of-bounds pacing sample: {samples}"
+    assert len(set(round(s, 3) for s in samples)) > 1, "Pacing delay must be randomized jitter, not fixed"
+
+    assert is_valid_pacing_delay(8) is True
+    assert is_valid_pacing_delay(15) is True
+    assert is_valid_pacing_delay(2.5) is False
+    assert is_valid_pacing_delay(7.99) is False
+    assert is_valid_pacing_delay(15.01) is False
+    assert is_valid_pacing_delay(True) is False
 
 
 def test_scene_editor_extend_before_edit_invariant():
@@ -189,6 +232,11 @@ def test_live_rules_markdown_consistency():
     agents_md = (PLUGIN_ROOT / "rules" / "AGENTS.md").read_text(encoding="utf-8")
     assert "MAX_CREDIT_CEILING" in agents_md
     assert "MAX_SESSION_CREDITS" in agents_md
+    assert "MAX_SESSION_DISPATCHES" in agents_md
+    assert "8-15s" in agents_md
+    assert "PAUSED_" in agents_md
+    assert "retry_count = 0" in agents_md
+    assert "x1" in agents_md
     assert "Omni 1.2 Flash" in agents_md
     assert "Dec 5, 2026" in agents_md
     assert "PLUS" in agents_md
@@ -196,7 +244,41 @@ def test_live_rules_markdown_consistency():
 
     flow_generate_md = (PLUGIN_ROOT / "skills" / "flow-generate" / "SKILL.md").read_text(encoding="utf-8")
     assert "MAX_CREDIT_CEILING" in flow_generate_md
+    assert "MAX_SESSION_DISPATCHES" in flow_generate_md
+    assert "8-15s" in flow_generate_md
+    assert "PAUSED_" in flow_generate_md
+    assert "retry_count = 0" in flow_generate_md
+    assert "x1" in flow_generate_md
     assert "Omni 1.2 Flash" in flow_generate_md
+
+
+def test_canonical_hl_en_and_project_reuse_consistency():
+    """Verify canonical https://flow.google.com/?hl=en entry URLs and project-reuse-first rules."""
+    bare_root_entry_re = re.compile(r"https://flow\.google\.com/(?!\?hl=en|changelogs|_/|\.\.\.)")
+    checked_files = [
+        PLUGIN_ROOT / "rules" / "AGENTS.md",
+        PLUGIN_ROOT / "README.md",
+        PLUGIN_ROOT / "skills" / "flow-ingredients" / "SKILL.md",
+        PLUGIN_ROOT / "skills" / "flow-generate" / "SKILL.md",
+        PLUGIN_ROOT / "skills" / "flow-tools" / "SKILL.md",
+        PLUGIN_ROOT / "skills" / "flow-sync" / "SKILL.md",
+        PLUGIN_ROOT / "skills" / "flow-sync" / "references" / "audit-checklist.md",
+    ]
+    for path in checked_files:
+        text = path.read_text(encoding="utf-8")
+        assert CANONICAL_ENTRY_URL in text, f"Missing canonical {CANONICAL_ENTRY_URL} in {path}"
+        assert bare_root_entry_re.search(text) is None, f"Bare root URL without ?hl=en found in {path}"
+
+    agents_md = (PLUGIN_ROOT / "rules" / "AGENTS.md").read_text(encoding="utf-8").lower()
+    ingredients_md = (PLUGIN_ROOT / "skills" / "flow-ingredients" / "SKILL.md").read_text(encoding="utf-8").lower()
+    generate_md = (PLUGIN_ROOT / "skills" / "flow-generate" / "SKILL.md").read_text(encoding="utf-8").lower()
+    assert "project reuse first" in agents_md
+    assert "project reuse first" in ingredients_md
+    assert "project reuse first" in generate_md and "+ new project" in generate_md
+
+    readme_md = (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8")
+    assert "version-0.3.2" in readme_md
+    assert "38/38 passing" in readme_md
 
 
 if __name__ == "__main__":
@@ -206,8 +288,10 @@ if __name__ == "__main__":
     test_negative_and_decimal_rejection()
     test_singular_and_standard_credit_parsing()
     test_credit_ceiling_and_session_cap()
+    test_zero_credit_session_dispatch_cap()
     test_duration_upscale_math_and_gating()
     test_rate_limit_pacing_delay()
     test_scene_editor_extend_before_edit_invariant()
     test_live_rules_markdown_consistency()
+    test_canonical_hl_en_and_project_reuse_consistency()
     print("Tier 6 Tests PASSED: All adversarial hardening and live invariants verified.")
