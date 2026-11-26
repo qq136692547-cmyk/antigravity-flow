@@ -145,6 +145,16 @@ def test_zero_credit_session_dispatch_cap():
     assert "Session dispatch cap reached" in reason
     assert "0-credit" in reason
 
+    # Invalid/corrupted dispatch counts MUST fail-closed
+    for bad_count in (-1, True, None):
+        can_proceed, reason = should_auto_proceed(
+            credit_cost=0,
+            autonomy_mode="auto",
+            session_dispatches=bad_count,
+        )
+        assert can_proceed is False
+        assert "Fail-closed" in reason
+
 
 def test_duration_upscale_math_and_gating():
     """Verify dynamic duration upscale pricing (>10s) and tier subscription gating."""
@@ -254,7 +264,9 @@ def test_live_rules_markdown_consistency():
 
 def test_canonical_hl_en_and_project_reuse_consistency():
     """Verify canonical https://flow.google.com/?hl=en entry URLs and project-reuse-first rules."""
-    bare_root_entry_re = re.compile(r"https://flow\.google\.com/(?!\?hl=en|changelogs|_/|\.\.\.)")
+    bare_root_entry_re = re.compile(
+        r"https?://flow\.google\.com(?!/\?hl=en\b|/changelogs\b|/_/|/\.\.\.|/verify-account\b|`?\s+origin\b)(?:/(?=[\s\)\"`'>,\].]|$)|(?=[\s\)\"`'>,\].]|$))"
+    )
     checked_files = [
         PLUGIN_ROOT / "rules" / "AGENTS.md",
         PLUGIN_ROOT / "README.md",
@@ -267,7 +279,8 @@ def test_canonical_hl_en_and_project_reuse_consistency():
     for path in checked_files:
         text = path.read_text(encoding="utf-8")
         assert CANONICAL_ENTRY_URL in text, f"Missing canonical {CANONICAL_ENTRY_URL} in {path}"
-        assert bare_root_entry_re.search(text) is None, f"Bare root URL without ?hl=en found in {path}"
+        match = bare_root_entry_re.search(text)
+        assert match is None, f"Bare root URL '{match.group(0)}' without ?hl=en found in {path}"
 
     agents_md = (PLUGIN_ROOT / "rules" / "AGENTS.md").read_text(encoding="utf-8").lower()
     ingredients_md = (PLUGIN_ROOT / "skills" / "flow-ingredients" / "SKILL.md").read_text(encoding="utf-8").lower()

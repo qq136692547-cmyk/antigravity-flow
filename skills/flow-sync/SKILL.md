@@ -1,7 +1,7 @@
 ---
 name: flow-sync
 description: >-
-  Manual maintenance skill: audit the live Google Flow web app (https://flow.google.com)
+  Manual maintenance skill: audit the live Google Flow web app (https://flow.google.com/?hl=en)
   via Antigravity's built-in browser to detect new features, updated UI labels, model
   launches, credit changes, and deprecated/removed capabilities, then patch and prune
   this plugin's rules, skills, and references. Invoke only when explicitly triggered

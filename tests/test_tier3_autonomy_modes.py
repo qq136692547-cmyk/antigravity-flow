@@ -82,8 +82,11 @@ def test_platform_error_signal_classification():
         ("Your account must be verified at https://flow.google.com/verify-account", None, "ACCOUNT_VERIFICATION_REQUIRED"),
         ("Please complete the reCAPTCHA challenge to continue", None, "CAPTCHA_REQUIRED"),
         ("Error: requesting generations too quickly", None, "RATE_LIMITED"),
+        ("HTTP 429 Too Many Requests", None, "RATE_LIMITED"),
+        ("Status 429", None, "RATE_LIMITED"),
         ("Too many requests", 429, "RATE_LIMITED"),
         ("Our systems have detected unusual traffic from your computer network", 403, "WAF_BLOCKED"),
+        ("HTTP 403 Forbidden", None, "WAF_BLOCKED"),
         ("Cloudflare Turnstile verification blocked access", None, "WAF_BLOCKED"),
         ("Generation blocked by content policy safety filter", None, "SAFETY_BLOCKED"),
         ("Redirected to accounts.google.com Sign in", None, "LOGIN_REQUIRED"),
@@ -98,6 +101,7 @@ def test_platform_error_signal_classification():
         assert res["retry_count"] == 0
 
     assert classify_platform_error("Generating will use 0 credits", status_code=200) is None
+    assert classify_platform_error("Generating will use 429 credits", status_code=200) is None
 
 
 if __name__ == "__main__":

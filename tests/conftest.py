@@ -152,10 +152,10 @@ def classify_platform_error(signal_text: str = "", status_code: Optional[int] = 
     if any(tok in text for tok in ("recaptcha", "g-recaptcha", "captcha", "i'm not a robot", "verify you are human")):
         return "CAPTCHA_REQUIRED"
 
-    if status_code == 403 or any(tok in text for tok in ("unusual traffic", "turnstile", "cf-chl", "cloudflare", "waf", "access denied")):
+    if status_code == 403 or re.search(r"\b(?:http\s*|status\s*)?403\b(?!\s*credits?\b)", text) or any(tok in text for tok in ("unusual traffic", "turnstile", "cf-chl", "cloudflare", "waf", "access denied", "403 forbidden")):
         return "WAF_BLOCKED"
 
-    if status_code == 429 or any(tok in text for tok in ("requesting generations too quickly", "too many requests", "rate limit", "rate_limited")):
+    if status_code == 429 or re.search(r"\b(?:http\s*|status\s*)?429\b(?!\s*credits?\b)", text) or any(tok in text for tok in ("requesting generations too quickly", "too many requests", "rate limit", "rate_limited")):
         return "RATE_LIMITED"
 
     if any(tok in text for tok in ("safety", "policy filter", "content policy", "violates our", "unsafe content", "harm_category", "flagged for policy")):
@@ -224,6 +224,9 @@ def should_auto_proceed(
     """
     if not is_valid_credit_cost(credit_cost):
         return False, "Fail-closed: Unable to determine credit cost (possible NaN or unparsed UI). Checkpoint pause required."
+
+    if not is_valid_credit_cost(session_dispatches):
+        return False, "Fail-closed: Invalid session dispatch count. Checkpoint pause required."
 
     if session_dispatches >= max_session_dispatches:
         return False, f"Session dispatch cap reached ({session_dispatches} >= {max_session_dispatches}). Pause required even for 0-credit actions."
